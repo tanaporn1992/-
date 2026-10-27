@@ -1,0 +1,8 @@
+{
+  "name": "Remix ระบบจดมิเตอร์และรายงานรูปภาพค่าใช้จ่ายหอพัก",
+  "description": "ระบบบันทึกมิเตอร์น้ำประปา-ไฟฟ้า พร้อมรายงานรูปภาพหลักฐานมิเตอร์ และระบบคำนวณค่าใช้จ่ายรายเดือนอัตโนมัติสำหรับหอพัก 8 อาคาร",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

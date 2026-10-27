@@ -1,0 +1,2334 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจดมิเตอร์น้ำประปาและมิเตอร์ไฟฟ้า - Dorm Utility System</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts (Prompt & Sarabun for clean Thai typography) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <!-- html2pdf.js for PDF Generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Prompt', 'Sarabun', sans-serif;
+      background-color: #f3f4f6;
+    }
+    
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      .print-only {
+        display: block !important;
+      }
+      body {
+        background-color: white !important;
+        font-family: 'Sarabun', sans-serif !important;
+        color: black !important;
+      }
+      .page-break {
+        page-break-after: always;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 1cm;
+      }
+    }
+
+    .print-only {
+      display: none;
+    }
+
+    /* Print Table Borders */
+    .print-table, .print-table th, .print-table td {
+      border: 1px solid #000000 !important;
+      border-collapse: collapse !important;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen">
+
+  <div id="app" class="flex flex-col min-h-screen">
+    
+    <!-- Toast Notification Popup -->
+    <div v-if="toast.show" 
+         :class="toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'" 
+         class="fixed bottom-5 right-5 z-50 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all transform duration-300">
+      <i :class="toast.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'" class="fas text-xl"></i>
+      <span class="font-medium text-sm">{{ toast.message }}</span>
+    </div>
+
+    <!-- MAIN HEADER (NO-PRINT) -->
+    <header class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg sticky top-0 z-30 no-print">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          
+          <!-- Logo & Dorm Title -->
+          <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-blue-600/40 border border-blue-400/30 rounded-2xl backdrop-blur-md">
+              <i class="fa-solid fa-bolt-lightning text-amber-400 text-2xl"></i>
+            </div>
+            <div>
+              <h1 class="text-lg md:text-xl font-bold tracking-wide">ระบบจดมิเตอร์น้ำ-ไฟฟ้าและออกใบแจ้งหนี้</h1>
+              <p class="text-xs text-blue-200">จัดการอาคารพักอาศัย 8 อาคาร (รวม 382 ห้อง)</p>
+            </div>
+          </div>
+
+          <!-- Month Selector & Quick Stats Bar -->
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div class="bg-white/10 border border-white/10 rounded-xl p-1.5 flex items-center space-x-2 backdrop-blur-sm">
+              <i class="fa-regular fa-calendar-alt text-blue-300 ml-2"></i>
+              <label class="text-xs text-blue-200 hidden sm:inline">ประจำเดือน:</label>
+              <input type="month" v-model="selectedMonth" @change="onMonthChange" 
+                     class="bg-slate-800 text-white text-xs sm:text-sm font-semibold px-2 py-1 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+
+            <button @click="openQuickWalkthrough" 
+                    class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center space-x-2 shadow-md transition-all">
+              <i class="fa-solid fa-pen-to-square"></i>
+              <span>จดมิเตอร์ด่วน</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Global Summary Chips -->
+        <div class="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div class="bg-white/5 px-3 py-1.5 rounded-lg flex items-center justify-between border border-white/5">
+            <span class="text-blue-200">ห้องทั้งหมด</span>
+            <span class="font-bold text-sm text-white">{{ stats.totalRooms }}</span>
+          </div>
+          <div class="bg-emerald-500/10 px-3 py-1.5 rounded-lg flex items-center justify-between border border-emerald-500/20">
+            <span class="text-emerald-300">บันทึกแล้ว</span>
+            <span class="font-bold text-sm text-emerald-400">{{ stats.recordedCount }} / {{ stats.totalRooms }}</span>
+          </div>
+          <div class="bg-amber-500/10 px-3 py-1.5 rounded-lg flex items-center justify-between border border-amber-500/20">
+            <span class="text-amber-300">รอดำเนินการ</span>
+            <span class="font-bold text-sm text-amber-400">{{ stats.totalRooms - stats.recordedCount }}</span>
+          </div>
+          <div class="bg-blue-500/10 px-3 py-1.5 rounded-lg flex items-center justify-between border border-blue-500/20">
+            <span class="text-blue-300">ประเมินยอดรวม</span>
+            <span class="font-bold text-sm text-blue-300">฿{{ formatNumber(stats.totalRevenue) }}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="bg-slate-900/80 backdrop-blur-md border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-2 sm:px-6 flex space-x-1 sm:space-x-2 overflow-x-auto text-xs sm:text-sm font-medium">
+          <button @click="currentTab = 'grid'" 
+                  :class="currentTab === 'grid' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-border-all"></i>
+            <span>ผังห้องพัก</span>
+          </button>
+
+          <button @click="currentTab = 'walkthrough'" 
+                  :class="currentTab === 'walkthrough' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-list-check"></i>
+            <span>จดมิเตอร์ต่อเนื่อง</span>
+          </button>
+
+          <!-- NEW TAB: BUILDING METER SHEET (รูปตามเอกสาร) -->
+          <button @click="currentTab = 'buildingSheet'" 
+                  :class="currentTab === 'buildingSheet' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-table-list"></i>
+            <span>ตารางจดมิเตอร์รายอาคาร</span>
+          </button>
+
+          <button @click="currentTab = 'monthlyReport'" 
+                  :class="currentTab === 'monthlyReport' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>รายงานสรุปภาพรวม</span>
+          </button>
+
+          <button @click="currentTab = 'reports'" 
+                  :class="currentTab === 'reports' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+            <span>ใบแจ้งหนี้รายห้อง</span>
+          </button>
+
+          <button @click="currentTab = 'sheets'" 
+                  :class="currentTab === 'sheets' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-file-excel"></i>
+            <span>ส่งออก Google Sheets</span>
+          </button>
+
+          <button @click="currentTab = 'settings'" 
+                  :class="currentTab === 'settings' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" 
+                  class="px-3 py-2.5 rounded-t-lg transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-gear"></i>
+            <span>ตั้งค่า & สำรองข้อมูล</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER (NO-PRINT) -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 no-print">
+
+      <!-- TAB 1: ROOM GRID VIEW (ผังห้องพัก) -->
+      <section v-if="currentTab === 'grid'" class="space-y-5">
+        
+        <!-- Controls & Filters Bar -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+          
+          <!-- Building Selector Tabs -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">เลือกอาคาร:</label>
+            <div class="flex flex-wrap gap-2">
+              <button @click="selectedBuildingFilter = 'ALL'" 
+                      :class="selectedBuildingFilter === 'ALL' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                      class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all">
+                ทุกอาคาร (382)
+              </button>
+              
+              <button v-for="b in buildingList" :key="b.id" 
+                      @click="selectedBuildingFilter = b.id"
+                      :class="selectedBuildingFilter === b.id ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                      class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center space-x-1">
+                <span>{{ b.name }}</span>
+                <span class="text-[10px] opacity-80 px-1.5 py-0.5 rounded-full bg-black/10">
+                  {{ getBuildingRecordedCount(b.id) }}/{{ getBuildingTotalRooms(b.id) }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Secondary Filters: Floor & Status & Search -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1 font-medium">ชั้น:</label>
+              <select v-model="selectedFloorFilter" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="ALL">ทุกชั้น</option>
+                <option v-for="f in [1,2,3,4,5]" :key="f" :value="f">ชั้น {{ f }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-500 mb-1 font-medium">สถานะบันทึก:</label>
+              <select v-model="selectedStatusFilter" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="ALL">ทั้งหมด</option>
+                <option value="RECORDED">จดบันทึกแล้ว</option>
+                <option value="PENDING">ยังไม่จดบันทึก</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-500 mb-1 font-medium">ค้นหาเลขห้อง:</label>
+              <div class="relative">
+                <input type="text" v-model="searchQuery" placeholder="ระบุเลขห้อง เช่น 201, 4114..." 
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Room Cards Matrix -->
+        <div class="space-y-6">
+          <div v-for="bGroup in groupedFilteredRooms" :key="bGroup.buildingId" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            
+            <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+              <div class="flex items-center space-x-2">
+                <div class="w-3 h-3 rounded-full bg-blue-600"></div>
+                <h3 class="text-base font-bold text-slate-900">{{ bGroup.buildingName }}</h3>
+                <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-medium">
+                  {{ bGroup.rooms.length }} ห้อง
+                </span>
+              </div>
+              <span class="text-xs text-slate-500 font-medium">
+                ค่าน้ำ: {{ bGroup.waterNote }}
+              </span>
+            </div>
+
+            <!-- Room Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div v-for="room in bGroup.rooms" :key="room.id" 
+                   @click="openRecordModal(room)"
+                   :class="[
+                     getRecord(room.id) ? 'bg-emerald-50/70 border-emerald-300 hover:border-emerald-500' : 'bg-slate-50 border-slate-200 hover:border-blue-400',
+                     'border rounded-xl p-3 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between relative group'
+                   ]">
+                
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-extrabold text-slate-900 text-base sm:text-lg">
+                    {{ room.roomNo }}
+                  </span>
+                  <span :class="getRecord(room.id) ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'" 
+                        class="text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                    {{ getRecord(room.id) ? 'จดแล้ว' : 'รอจด' }}
+                  </span>
+                </div>
+
+                <div v-if="getRecord(room.id)" class="text-xs space-y-1 text-slate-600">
+                  <div class="flex justify-between text-[11px]">
+                    <span class="text-slate-400"><i class="fa-solid fa-droplet text-blue-500 mr-1"></i>น้ำ:</span>
+                    <span class="font-medium text-slate-800">
+                      {{ room.waterType === 'flat_per_person' ? getRecord(room.id).occupants + ' คน' : getRecord(room.id).waterUnits + ' หน่วย' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between text-[11px]">
+                    <span class="text-slate-400"><i class="fa-solid fa-bolt text-amber-500 mr-1"></i>ไฟ:</span>
+                    <span class="font-medium text-slate-800">{{ getRecord(room.id).elecUnits }} หน่วย</span>
+                  </div>
+                  
+                  <div v-if="getRecord(room.id).remark" class="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded truncate">
+                    <i class="fa-regular fa-comment mr-1"></i>{{ getRecord(room.id).remark }}
+                  </div>
+
+                  <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between font-bold text-emerald-800 text-xs">
+                    <span>รวม:</span>
+                    <span>฿{{ formatNumber(getRecord(room.id).totalAmount) }}</span>
+                  </div>
+                </div>
+
+                <div v-else class="text-xs text-slate-400 py-2 text-center border-t border-dashed border-slate-200">
+                  <i class="fa-solid fa-plus-circle text-slate-300 text-lg group-hover:text-blue-500 transition-colors"></i>
+                  <p class="text-[10px] mt-1 text-slate-400 group-hover:text-blue-600">กดเพื่อบันทึก</p>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <div v-if="groupedFilteredRooms.length === 0" class="text-center py-16 bg-white rounded-2xl border border-slate-200">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
+            <p class="text-slate-500 font-medium">ไม่พบข้อมูลห้องพักตามเงื่อนไขที่เลือก</p>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- TAB 2: CONTINUOUS METER RECORDING (จดมิเตอร์แบบต่อเนื่อง) -->
+      <section v-if="currentTab === 'walkthrough'" class="max-w-3xl mx-auto space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">โหมดจดมิเตอร์ต่อเนื่อง (Walkthrough Mode)</h2>
+              <p class="text-xs text-slate-500">ช่วยให้เจ้าหน้าที่เดินจดมิเตอร์ทีละห้องได้อย่างสะดวก รวดเร็ว</p>
+            </div>
+            <span class="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full">
+              ห้องที่ {{ currentWalkIndex + 1 }} / {{ pendingRoomsList.length }}
+            </span>
+          </div>
+
+          <!-- Select Building for Walkthrough -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">อาคารที่เดินจด:</label>
+              <select v-model="walkthroughBuilding" @change="resetWalkthrough" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="ALL">ทุกอาคาร</option>
+                <option v-for="b in buildingList" :key="b.id" :value="b.id">{{ b.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">กรองสถานะห้อง:</label>
+              <select v-model="walkthroughStatusFilter" @change="resetWalkthrough" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="PENDING">เฉพาะห้องที่ยังไม่ได้จด</option>
+                <option value="ALL">ห้องทั้งหมดในอาคาร</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Current Walkthrough Active Room Card -->
+          <div v-if="currentWalkRoom" class="bg-slate-50 border-2 border-blue-500/80 rounded-2xl p-5 space-y-5 shadow-sm">
+            
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-blue-600 uppercase tracking-wide">{{ currentWalkRoom.buildingName }} • ชั้น {{ currentWalkRoom.floor }}</span>
+                <h3 class="text-2xl font-black text-slate-900">ห้อง {{ currentWalkRoom.roomNo }}</h3>
+              </div>
+              <div class="text-right">
+                <span :class="currentWalkRoom.waterType === 'flat_per_person' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'" class="text-xs font-bold px-2.5 py-1 rounded-lg">
+                  {{ currentWalkRoom.waterType === 'flat_per_person' ? 'เหมาค่าน้ำ 100 บ./คน' : 'ค่าน้ำตามหน่วย (20 บ./หน่วย)' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Form Fields -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2 border-t border-slate-200">
+              
+              <!-- WATER METER SECTION -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div class="flex items-center space-x-2 text-blue-600 font-bold text-sm">
+                  <i class="fa-solid fa-droplet"></i>
+                  <span>มิเตอร์น้ำประปา</span>
+                </div>
+
+                <template v-if="currentWalkRoom.waterType === 'unit'">
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์น้ำเดิม ({{ getPrevShortMonthYear(selectedMonth) }}):</label>
+                    <input type="number" v-model.number="walkForm.waterPrev" class="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700">
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์น้ำปัจจุบัน ({{ getShortMonthYear(selectedMonth) }}):</label>
+                    <input type="number" v-model.number="walkForm.waterCurr" 
+                           ref="walkWaterInput"
+                           class="w-full bg-white border-2 border-blue-400 rounded-lg px-3 py-2 text-base font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                  <div class="text-xs flex justify-between pt-1 border-t border-slate-100 text-slate-600 font-medium">
+                    <span>ใช้ไป: <b class="text-blue-600">{{ walkWaterUnits }}</b> หน่วย</span>
+                    <span>เป็นเงิน: <b class="text-blue-600">฿{{ formatNumber(walkWaterCost) }}</b></span>
+                  </div>
+                </template>
+
+                <template v-else>
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">จำนวนผู้พักอาศัย (คน):</label>
+                    <input type="number" min="0" v-model.number="walkForm.occupants" 
+                           class="w-full bg-white border-2 border-amber-400 rounded-lg px-3 py-2 text-base font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                  </div>
+                  <div class="text-xs flex justify-between pt-1 border-t border-slate-100 text-slate-600 font-medium">
+                    <span>อัตรา: 100 บาท/คน</span>
+                    <span>เป็นเงิน: <b class="text-amber-600">฿{{ formatNumber(walkWaterCost) }}</b></span>
+                  </div>
+                </template>
+
+                <!-- Water Photo Capture -->
+                <div class="pt-2 border-t border-slate-100">
+                  <label class="block text-xs text-slate-500 mb-1 font-medium">ถ่ายภาพมิเตอร์น้ำ:</label>
+                  <div class="flex items-center space-x-2">
+                    <label class="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 flex items-center space-x-1">
+                      <i class="fa-solid fa-camera"></i>
+                      <span>{{ walkForm.waterPhoto ? 'ถ่ายใหม่' : 'ถ่ายภาพ / แนบรูป' }}</span>
+                      <input type="file" accept="image/*" capture="environment" class="hidden" @change="onPhotoSelected($event, 'walk', 'water')">
+                    </label>
+                    <button v-if="walkForm.waterPhoto" @click="walkForm.waterPhoto = null" class="text-xs text-rose-500 hover:text-rose-700">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                  <div v-if="walkForm.waterPhoto" class="mt-2">
+                    <img :src="walkForm.waterPhoto" class="w-full h-24 object-cover rounded-lg border border-slate-200">
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- ELECTRICITY METER SECTION -->
+              <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div class="flex items-center space-x-2 text-amber-500 font-bold text-sm">
+                  <i class="fa-solid fa-bolt"></i>
+                  <span>มิเตอร์ไฟฟ้า</span>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์ไฟเดิม ({{ getPrevShortMonthYear(selectedMonth) }}):</label>
+                  <input type="number" v-model.number="walkForm.elecPrev" class="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700">
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์ไฟปัจจุบัน ({{ getShortMonthYear(selectedMonth) }}):</label>
+                  <input type="number" v-model.number="walkForm.elecCurr" 
+                         class="w-full bg-white border-2 border-amber-400 rounded-lg px-3 py-2 text-base font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+                <div class="text-xs flex justify-between pt-1 border-t border-slate-100 text-slate-600 font-medium">
+                  <span>ใช้ไป: <b class="text-amber-600">{{ walkElecUnits }}</b> หน่วย</span>
+                  <span>เป็นเงิน: <b class="text-amber-600">฿{{ formatNumber(walkElecCost) }}</b></span>
+                </div>
+
+                <!-- Electricity Photo Capture -->
+                <div class="pt-2 border-t border-slate-100">
+                  <label class="block text-xs text-slate-500 mb-1 font-medium">ถ่ายภาพมิเตอร์ไฟ:</label>
+                  <div class="flex items-center space-x-2">
+                    <label class="cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-200 flex items-center space-x-1">
+                      <i class="fa-solid fa-camera"></i>
+                      <span>{{ walkForm.elecPhoto ? 'ถ่ายใหม่' : 'ถ่ายภาพ / แนบรูป' }}</span>
+                      <input type="file" accept="image/*" capture="environment" class="hidden" @change="onPhotoSelected($event, 'walk', 'elec')">
+                    </label>
+                    <button v-if="walkForm.elecPhoto" @click="walkForm.elecPhoto = null" class="text-xs text-rose-500 hover:text-rose-700">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                  <div v-if="walkForm.elecPhoto" class="mt-2">
+                    <img :src="walkForm.elecPhoto" class="w-full h-24 object-cover rounded-lg border border-slate-200">
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- Remarks Field -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200">
+              <label class="block text-xs text-slate-600 mb-1 font-medium">หมายเหตุ (เช่น นักฟุตบอล, ห้องผู้ช่วย, ห้องว่าง...):</label>
+              <input type="text" v-model="walkForm.remark" placeholder="ระบุหมายเหตุถ้ามี..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+              <button @click="prevWalkRoom" :disabled="currentWalkIndex === 0" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 disabled:opacity-40 rounded-xl text-xs font-bold text-slate-700">
+                <i class="fa-solid fa-chevron-left mr-1"></i> ห้องก่อนหน้า
+              </button>
+
+              <button @click="skipWalkRoom" class="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-800">
+                ข้ามห้องนี้
+              </button>
+
+              <button @click="saveAndNextWalk" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md flex items-center space-x-1">
+                <span>บันทึก & ถัดไป</span>
+                <i class="fa-solid fa-chevron-right ml-1"></i>
+              </button>
+            </div>
+
+          </div>
+
+          <div v-else class="text-center py-12">
+            <i class="fa-solid fa-circle-check text-5xl text-emerald-500 mb-3"></i>
+            <h3 class="text-lg font-bold text-slate-800">บันทึกมิเตอร์ครบเรียบร้อยแล้ว!</h3>
+            <p class="text-xs text-slate-500">ไม่มีห้องคงค้างในอาคารหรือเงื่อนไขที่เลือก</p>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 3: BUILDING METER LOG SHEET (ตารางจดมิเตอร์รายอาคาร - รูปแบบเอกสารจริง) -->
+      <section v-if="currentTab === 'buildingSheet'" class="space-y-6">
+        
+        <!-- Controls & Header -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-100">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                <i class="fa-solid fa-table-list text-indigo-600"></i>
+                <span>รายงานตารางสรุปค่าน้ำประปา-ไฟฟ้า รายอาคาร</span>
+              </h2>
+              <p class="text-xs text-slate-500">รูปแบบรายการแจ้งหนี้ตารางคู่ขนาน ตรงตามเอกสารทางการของหอพัก</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button @click="printBuildingSheet" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center space-x-2 shadow-sm transition-all">
+                <i class="fa-solid fa-print"></i>
+                <span>พิมพ์รายงานตารางสรุป (PDF)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Building Switcher Tabs -->
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="text-xs font-bold text-slate-600 mr-2">เลือกอาคาร:</label>
+            <button v-for="b in buildingList" :key="b.id" 
+                    @click="sheetSelectedBuilding = b.id"
+                    :class="sheetSelectedBuilding === b.id ? 'bg-indigo-900 text-white shadow-md font-bold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                    class="px-3.5 py-1.5 rounded-xl text-xs transition-all">
+              {{ b.name }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Interactive Sheet Table View (Screen) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          
+          <div class="p-4 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-center text-xs gap-2">
+            <div>
+              <span class="text-indigo-300 font-bold uppercase">หอพัก{{ currentSheetBuilding.name }}</span>
+              <span class="mx-2">•</span>
+              <span>ประจำเดือน {{ formatMonthThai(selectedMonth) }}</span>
+            </div>
+            <div class="text-slate-300 italic">
+              * ท่านสามารถแก้ไข "หมายเหตุ" หรือกดพิมพ์ตารางออกได้ทันที
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-center text-xs border-collapse">
+              <thead class="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-300">
+                <tr>
+                  <th rowspan="2" class="p-2 border border-slate-300 w-16">ห้อง</th>
+                  <th colspan="3" class="p-2 border border-slate-300 bg-blue-50/80 text-blue-900">เลขมิเตอร์ค่าน้ำประปา</th>
+                  <th colspan="3" class="p-2 border border-slate-300 bg-amber-50/80 text-amber-900">เลขมิเตอร์ค่าไฟฟ้า</th>
+                  <th colspan="3" class="p-2 border border-slate-300 bg-emerald-50/80 text-emerald-900">จำนวนเงิน (บาท)</th>
+                  <th rowspan="2" class="p-2 border border-slate-300 min-w-[140px]">หมายเหตุ</th>
+                </tr>
+                <tr>
+                  <!-- Water sub-headers -->
+                  <th class="p-2 border border-slate-300 bg-blue-50/40 text-slate-700 w-20">{{ getPrevShortMonthYear(selectedMonth) }}</th>
+                  <th class="p-2 border border-slate-300 bg-blue-50/40 text-slate-700 w-20">{{ getShortMonthYear(selectedMonth) }}</th>
+                  <th class="p-2 border border-slate-300 bg-blue-50/40 text-slate-700 w-16">จำนวนใช้</th>
+                  <!-- Electricity sub-headers -->
+                  <th class="p-2 border border-slate-300 bg-amber-50/40 text-slate-700 w-20">{{ getPrevShortMonthYear(selectedMonth) }}</th>
+                  <th class="p-2 border border-slate-300 bg-amber-50/40 text-slate-700 w-20">{{ getShortMonthYear(selectedMonth) }}</th>
+                  <th class="p-2 border border-slate-300 bg-amber-50/40 text-slate-700 w-16">จำนวนใช้</th>
+                  <!-- Amount sub-headers -->
+                  <th class="p-2 border border-slate-300 bg-emerald-50/40 text-slate-700 w-20">ค่าน้ำประปา</th>
+                  <th class="p-2 border border-slate-300 bg-emerald-50/40 text-slate-700 w-20">ค่าไฟฟ้า</th>
+                  <th class="p-2 border border-slate-300 bg-emerald-50/40 text-slate-700 w-24">รวมเงิน</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr v-for="r in currentBuildingSheetRows" :key="r.roomNo" class="hover:bg-slate-50 transition-colors">
+                  <!-- Room No -->
+                  <td class="p-2 font-bold text-slate-900 border border-slate-200 bg-slate-50/50">
+                    {{ r.roomNo }}
+                  </td>
+                  
+                  <!-- Water Meters -->
+                  <td class="p-2 border border-slate-200 text-slate-600">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? '-' : r.waterPrev) : '-' }}</td>
+                  <td class="p-2 border border-slate-200 text-slate-900 font-medium">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? r.occupants + ' คน' : r.waterCurr) : '-' }}</td>
+                  <td class="p-2 border border-slate-200 font-bold text-blue-700 bg-blue-50/20">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? '-' : r.waterUnits) : '-' }}</td>
+
+                  <!-- Electricity Meters -->
+                  <td class="p-2 border border-slate-200 text-slate-600">{{ r.hasRecord ? r.elecPrev : '-' }}</td>
+                  <td class="p-2 border border-slate-200 text-slate-900 font-medium">{{ r.hasRecord ? r.elecCurr : '-' }}</td>
+                  <td class="p-2 border border-slate-200 font-bold text-amber-700 bg-amber-50/20">{{ r.hasRecord ? r.elecUnits : '-' }}</td>
+
+                  <!-- Amounts -->
+                  <td class="p-2 border border-slate-200 text-right font-medium text-slate-800">{{ r.hasRecord ? formatNumber(r.waterCost) : '-' }}</td>
+                  <td class="p-2 border border-slate-200 text-right font-medium text-slate-800">{{ r.hasRecord ? formatNumber(r.elecCost) : '-' }}</td>
+                  <td class="p-2 border border-slate-200 text-right font-extrabold text-slate-900 bg-emerald-50/20">{{ r.hasRecord ? formatNumber(r.totalAmount) : '-' }}</td>
+
+                  <!-- Remarks editable -->
+                  <td class="p-1 border border-slate-200 text-left">
+                    <input type="text" 
+                           v-model="r.remark" 
+                           @change="updateRoomRemark(r.roomId, r.remark)" 
+                           placeholder="ระบุหมายเหตุ..." 
+                           class="w-full bg-transparent px-2 py-1 text-xs focus:bg-amber-50 focus:outline-none rounded text-slate-700">
+                  </td>
+                </tr>
+              </tbody>
+              <!-- Totals Row -->
+              <tfoot class="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
+                <tr>
+                  <td class="p-2.5 border border-slate-300">รวมทั้งสิ้น</td>
+                  <td colspan="2" class="p-2.5 border border-slate-300 text-slate-500"></td>
+                  <td class="p-2.5 border border-slate-300 text-blue-800 font-black">{{ formatNumber(currentSheetTotals.waterUnits) }}</td>
+                  <td colspan="2" class="p-2.5 border border-slate-300 text-slate-500"></td>
+                  <td class="p-2.5 border border-slate-300 text-amber-800 font-black">{{ formatNumber(currentSheetTotals.elecUnits) }}</td>
+                  <td class="p-2.5 border border-slate-300 text-right text-blue-900">฿{{ formatNumber(currentSheetTotals.waterCost) }}</td>
+                  <td class="p-2.5 border border-slate-300 text-right text-amber-900">฿{{ formatNumber(currentSheetTotals.elecCost) }}</td>
+                  <td class="p-2.5 border border-slate-300 text-right text-emerald-900 font-black text-sm">฿{{ formatNumber(currentSheetTotals.totalAmount) }}</td>
+                  <td class="p-2.5 border border-slate-300"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 4: MONTHLY SUMMARY REPORT (รายงานสรุปภาพรวม) -->
+      <section v-if="currentTab === 'monthlyReport'" class="space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">รายงานสรุปสาธารณูปโภคประจำเดือน {{ formatMonthThai(selectedMonth) }}</h2>
+              <p class="text-xs text-slate-500">สรุปหน่วยการใช้งานและรายได้แยกตามประเภทและอาคาร</p>
+            </div>
+            <button @click="printMonthlySummary" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center space-x-2 self-start sm:self-auto shadow-sm">
+              <i class="fa-solid fa-print"></i>
+              <span>พิมพ์รายงานสรุป PDF</span>
+            </button>
+          </div>
+
+          <!-- Top Stats Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <div class="bg-slate-900 text-white p-5 rounded-2xl shadow-sm">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-slate-300">รายได้รวมค่าน้ำ-ไฟ</span>
+                <div class="p-2 bg-white/10 rounded-xl text-amber-400">
+                  <i class="fa-solid fa-coins"></i>
+                </div>
+              </div>
+              <p class="text-2xl font-black">฿{{ formatNumber(monthlyAnalytics.totalRevenue) }}</p>
+              <div class="mt-2 text-[11px] text-slate-400">
+                เฉลี่ย ฿{{ formatNumber(monthlyAnalytics.avgPerRoom) }} / ห้อง
+              </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 p-5 rounded-2xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-blue-700 font-semibold">ค่าน้ำประปารวม</span>
+                <div class="p-2 bg-blue-500/10 rounded-xl text-blue-600">
+                  <i class="fa-solid fa-droplet"></i>
+                </div>
+              </div>
+              <p class="text-2xl font-black text-blue-900">฿{{ formatNumber(monthlyAnalytics.waterRevenue) }}</p>
+              <div class="mt-2 text-[11px] text-blue-600 font-medium flex justify-between">
+                <span>ปริมาณการใช้:</span>
+                <b>{{ monthlyAnalytics.waterUnits }} หน่วย</b>
+              </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 p-5 rounded-2xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-amber-700 font-semibold">ค่าไฟฟ้ารวม</span>
+                <div class="p-2 bg-amber-500/10 rounded-xl text-amber-600">
+                  <i class="fa-solid fa-bolt"></i>
+                </div>
+              </div>
+              <p class="text-2xl font-black text-amber-900">฿{{ formatNumber(monthlyAnalytics.elecRevenue) }}</p>
+              <div class="mt-2 text-[11px] text-amber-600 font-medium flex justify-between">
+                <span>ปริมาณการใช้:</span>
+                <b>{{ monthlyAnalytics.elecUnits }} หน่วย</b>
+              </div>
+            </div>
+
+            <div class="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-emerald-700 font-semibold">ความคืบหน้าการจด</span>
+                <div class="p-2 bg-emerald-500/10 rounded-xl text-emerald-600">
+                  <i class="fa-solid fa-list-check"></i>
+                </div>
+              </div>
+              <p class="text-2xl font-black text-emerald-900">{{ monthlyAnalytics.completionPercentage }}%</p>
+              <div class="mt-2 text-[11px] text-emerald-700 font-medium">
+                {{ stats.recordedCount }} จาก {{ stats.totalRooms }} ห้องจดเสร็จแล้ว
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Building Performance Table -->
+          <div class="pt-4 space-y-4">
+            <h3 class="text-sm font-bold text-slate-800">รายละเอียดรายอาคารประจำเดือน {{ formatMonthThai(selectedMonth) }}</h3>
+            
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-left text-xs sm:text-sm">
+                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                  <tr>
+                    <th class="p-3">ชื่ออาคาร</th>
+                    <th class="p-3 text-center">จดบันทึก/ทั้งหมด</th>
+                    <th class="p-3 text-right">หน่วยน้ำรวม</th>
+                    <th class="p-3 text-right">ค่าน้ำรวม (บาท)</th>
+                    <th class="p-3 text-right">หน่วยไฟรวม</th>
+                    <th class="p-3 text-right">ค่าไฟรวม (บาท)</th>
+                    <th class="p-3 text-right">ยอดเงินรวม (บาท)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-slate-700">
+                  <tr v-for="b in monthlyBuildingStats" :key="b.id" class="hover:bg-slate-50">
+                    <td class="p-3 font-bold text-slate-900">
+                      {{ b.name }}
+                    </td>
+                    <td class="p-3 text-center">
+                      <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="b.recorded === b.total ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'">
+                        {{ b.recorded }}/{{ b.total }} ห้อง
+                      </span>
+                    </td>
+                    <td class="p-3 text-right">{{ formatNumber(b.waterUnits) }}</td>
+                    <td class="p-3 text-right font-semibold text-blue-700">฿{{ formatNumber(b.waterCost) }}</td>
+                    <td class="p-3 text-right">{{ formatNumber(b.elecUnits) }}</td>
+                    <td class="p-3 text-right font-semibold text-amber-700">฿{{ formatNumber(b.elecCost) }}</td>
+                    <td class="p-3 text-right font-extrabold text-emerald-800 text-base">฿{{ formatNumber(b.totalCost) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 5: INVOICE REPORT & PDF GENERATION -->
+      <section v-if="currentTab === 'reports'" class="space-y-6">
+        
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">รายการใบแจ้งหนี้ประจำเดือน {{ formatMonthThai(selectedMonth) }}</h2>
+            <p class="text-xs text-slate-500">ตรวจสอบความถูกต้อง พิมพ์ใบแจ้งหนี้รายห้อง หรือดาวน์โหลด PDF</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button @click="printAllSelectedPDF" :disabled="selectedRoomIdsForPrint.length === 0" 
+                    class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium px-4 py-2 rounded-xl text-xs sm:text-sm shadow-sm flex items-center space-x-2">
+              <i class="fa-solid fa-file-pdf"></i>
+              <span>พิมพ์ใบแจ้งหนี้ PDF ({{ selectedRoomIdsForPrint.length }})</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          
+          <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" id="selectAll" @change="toggleSelectAllForPrint" :checked="isAllSelectedForPrint" class="w-4 h-4 text-blue-600 rounded">
+              <label for="selectAll" class="font-bold text-slate-700 cursor-pointer">เลือกทั้งหมด</label>
+            </div>
+
+            <div class="flex items-center space-x-3">
+              <select v-model="reportBuildingFilter" class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs">
+                <option value="ALL">ทุกอาคาร</option>
+                <option v-for="b in buildingList" :key="b.id" :value="b.id">{{ b.name }}</option>
+              </select>
+
+              <span class="text-slate-500">แสดง {{ filteredReportRecords.length }} รายการ</span>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="p-3 w-10 text-center">เลือก</th>
+                  <th class="p-3">อาคาร / ห้อง</th>
+                  <th class="p-3">ค่าน้ำประปา (หน่วย/คน)</th>
+                  <th class="p-3">ค่าไฟฟ้า (หน่วย)</th>
+                  <th class="p-3 text-right">รวมเป็นเงิน</th>
+                  <th class="p-3">หมายเหตุ</th>
+                  <th class="p-3 text-center">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-slate-700">
+                <tr v-for="rec in filteredReportRecords" :key="rec.roomId" class="hover:bg-slate-50">
+                  <td class="p-3 text-center">
+                    <input type="checkbox" :value="rec.roomId" v-model="selectedRoomIdsForPrint" class="w-4 h-4 text-blue-600 rounded">
+                  </td>
+                  <td class="p-3">
+                    <span class="font-bold text-slate-900 block text-base">ห้อง {{ rec.roomNo }}</span>
+                    <span class="text-xs text-slate-500">{{ rec.buildingName }}</span>
+                  </td>
+                  <td class="p-3">
+                    <div v-if="rec.waterType === 'flat_per_person'">
+                      <span class="font-medium text-amber-700">เหมา {{ rec.occupants }} คน</span>
+                      <span class="text-xs text-slate-400 block">฿{{ rec.waterCost }}</span>
+                    </div>
+                    <div v-else>
+                      <span>{{ rec.waterPrev }} ➔ {{ rec.waterCurr }} (<b>{{ rec.waterUnits }}</b> หน่วย)</span>
+                      <span class="text-xs text-slate-400 block">฿{{ rec.waterCost }}</span>
+                    </div>
+                  </td>
+                  <td class="p-3">
+                    <span>{{ rec.elecPrev }} ➔ {{ rec.elecCurr }} (<b>{{ rec.elecUnits }}</b> หน่วย)</span>
+                    <span class="text-xs text-slate-400 block">฿{{ rec.elecCost }}</span>
+                  </td>
+                  <td class="p-3 text-right font-extrabold text-slate-900 text-base">
+                    ฿{{ formatNumber(rec.totalAmount) }}
+                  </td>
+                  <td class="p-3 text-xs text-slate-500">
+                    {{ rec.remark || '-' }}
+                  </td>
+                  <td class="p-3 text-center">
+                    <button @click="openSingleInvoiceModal(rec)" class="bg-slate-100 hover:bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-medium text-xs border border-slate-200">
+                      <i class="fa-solid fa-print mr-1"></i>ดูใบแจ้งหนี้
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="filteredReportRecords.length === 0">
+                  <td colspan="7" class="p-8 text-center text-slate-400">
+                    ยังไม่มีข้อมูลบันทึกมิเตอร์ในเดือนนี้
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 6: GOOGLE SHEETS EXPORT -->
+      <section v-if="currentTab === 'sheets'" class="max-w-4xl mx-auto space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+          <div class="flex items-center space-x-3">
+            <div class="p-3 bg-emerald-100 text-emerald-700 rounded-2xl text-2xl">
+              <i class="fa-solid fa-file-excel"></i>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">ส่งออกข้อมูลไปยัง Google Sheets / Excel</h2>
+              <p class="text-xs text-slate-500">สามารถดาวน์โหลดไฟล์ CSV หรือคัดลอกตารางไปวางใน Google Sheets ได้ง่ายๆ</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div class="border border-slate-200 rounded-2xl p-5 bg-slate-50/50 hover:bg-slate-50 transition-all">
+              <div class="flex items-center space-x-2 text-slate-800 font-bold mb-2">
+                <i class="fa-solid fa-download text-emerald-600"></i>
+                <span>ดาวน์โหลด CSV (UTF-8)</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">
+                ดาวน์โหลดไฟล์ .csv ที่รองรับภาษาไทยสำหรับนำเข้า (Import) ใน Google Sheets หรือ MS Excel
+              </p>
+              <button @click="downloadCSV" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow-sm flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-file-csv"></i>
+                <span>ดาวน์โหลด CSV ประจำเดือน</span>
+              </button>
+            </div>
+
+            <div class="border border-slate-200 rounded-2xl p-5 bg-slate-50/50 hover:bg-slate-50 transition-all">
+              <div class="flex items-center space-x-2 text-slate-800 font-bold mb-2">
+                <i class="fa-solid fa-copy text-blue-600"></i>
+                <span>คัดลอกตารางลง Clipboard</span>
+              </div>
+              <p class="text-xs text-slate-500 mb-4">
+                กดปุ่มเพื่อคัดลอกข้อมูล จากนั้นเปิด Google Sheets แล้วกด <b>Ctrl+V</b> เพื่อวางตารางได้ทันที
+              </p>
+              <button @click="copyForGoogleSheets" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow-sm flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-paste"></i>
+                <span>คัดลอกตารางไปวางใน Google Sheets</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 7: SETTINGS & DATABASE -->
+      <section v-if="currentTab === 'settings'" class="max-w-3xl mx-auto space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+            <i class="fa-solid fa-sliders text-blue-600"></i>
+            <span>ตั้งค่าอัตราค่าน้ำ-ค่าไฟฟ้ามาตรฐาน</span>
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ค่าไฟฟ้า (บาท/หน่วย):</label>
+              <input type="number" step="0.5" v-model.number="settings.defaultElecRate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ค่าน้ำปกติ (บาท/หน่วย):</label>
+              <input type="number" step="1" v-model.number="settings.defaultWaterRate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ค่าน้ำเหมา (บาท/คน):</label>
+              <input type="number" step="10" v-model.number="settings.defaultFlatWaterRate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800">
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end">
+            <button @click="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs sm:text-sm">
+              บันทึกการตั้งค่า
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+            <i class="fa-solid fa-database text-emerald-600"></i>
+            <span>จัดการฐานข้อมูล & สำรองข้อมูล</span>
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <button @click="seedSampleData" class="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-blue-50/50 text-left transition-all">
+              <span class="font-bold text-slate-800 text-sm block mb-1">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-500 mr-2"></i>สุ่มสร้างข้อมูลจำลองหอพัก
+              </span>
+              <p class="text-xs text-slate-500">เติมข้อมูลมิเตอร์จำลองทั้ง 382 ห้องรวมหมายเหตุ เพื่อทดลองระบบ</p>
+            </button>
+
+            <button @click="exportBackupJSON" class="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-emerald-50/50 text-left transition-all">
+              <span class="font-bold text-slate-800 text-sm block mb-1">
+                <i class="fa-solid fa-file-export text-emerald-600 mr-2"></i>สำรองฐานข้อมูล (JSON)
+              </span>
+              <p class="text-xs text-slate-500">ดาวน์โหลดไฟล์สำรองข้อมูลมิเตอร์ทั้งหมดเก็บไว้ในเครื่อง</p>
+            </button>
+          </div>
+
+          <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
+            <span class="text-xs text-slate-400">ลบข้อมูลประจำเดือนปัจจุบัน:</span>
+            <button @click="confirmClearMonth" class="text-xs text-rose-600 hover:text-rose-800 font-bold px-3 py-1.5 border border-rose-200 rounded-lg hover:bg-rose-50">
+              ล้างข้อมูลเดือน {{ selectedMonth }}
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- RECORD SINGLE ROOM MODAL -->
+    <div v-if="modalRecord.show && modalRecord.room" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+      <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-fadeIn">
+        
+        <div class="bg-slate-900 text-white p-5 flex items-center justify-between">
+          <div>
+            <span class="text-xs text-blue-300 font-semibold uppercase">{{ modalRecord.room.buildingName }}</span>
+            <h3 class="text-2xl font-black">ห้อง {{ modalRecord.room.roomNo }}</h3>
+          </div>
+          <button @click="closeRecordModal" class="text-slate-400 hover:text-white text-xl">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          
+          <div class="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-xs text-blue-900 flex items-center justify-between">
+            <span>เงื่อนไขค่าน้ำ:</span>
+            <span class="font-bold">
+              {{ modalRecord.room.waterType === 'flat_per_person' ? 'เหมาค่าน้ำ 100 บาท/คน' : 'ค่าน้ำตามหน่วย 20 บาท/หน่วย' }}
+            </span>
+          </div>
+
+          <!-- WATER FIELD -->
+          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div class="flex items-center space-x-2 text-blue-600 font-bold text-sm">
+              <i class="fa-solid fa-droplet"></i>
+              <span>บันทึกค่าน้ำประปา</span>
+            </div>
+
+            <template v-if="modalRecord.room.waterType === 'unit'">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์เดิม ({{ getPrevShortMonthYear(selectedMonth) }}):</label>
+                  <input type="number" v-model.number="modalRecord.form.waterPrev" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-semibold">
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์ใหม่ ({{ getShortMonthYear(selectedMonth) }}):</label>
+                  <input type="number" v-model.number="modalRecord.form.waterCurr" class="w-full bg-white border-2 border-blue-400 rounded-xl px-3 py-1.5 text-sm font-bold">
+                </div>
+              </div>
+              <div class="text-xs flex justify-between text-slate-600 pt-1 font-medium">
+                <span>ใช้น้ำไป: <b>{{ modalWaterUnits }}</b> หน่วย</span>
+                <span>ค่าน้ำ: <b class="text-blue-600">฿{{ formatNumber(modalWaterCost) }}</b></span>
+              </div>
+            </template>
+
+            <template v-else>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">จำนวนผู้พักอาศัย (คน):</label>
+                <input type="number" min="0" v-model.number="modalRecord.form.occupants" class="w-full bg-white border-2 border-amber-400 rounded-xl px-3 py-2 text-base font-bold">
+              </div>
+              <div class="text-xs flex justify-between text-slate-600 pt-1 font-medium">
+                <span>อัตราเหมา: 100 บาท/คน</span>
+                <span>ค่าน้ำรวม: <b class="text-amber-600">฿{{ formatNumber(modalWaterCost) }}</b></span>
+              </div>
+            </template>
+
+            <!-- Modal Photo Water -->
+            <div class="pt-2 border-t border-slate-200">
+              <label class="block text-xs text-slate-500 mb-1 font-medium">ถ่ายภาพมิเตอร์น้ำ:</label>
+              <div class="flex items-center space-x-2">
+                <label class="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 flex items-center space-x-1">
+                  <i class="fa-solid fa-camera"></i>
+                  <span>{{ modalRecord.form.waterPhoto ? 'เปลี่ยนภาพ' : 'ถ่ายภาพ / แนบรูป' }}</span>
+                  <input type="file" accept="image/*" capture="environment" class="hidden" @change="onPhotoSelected($event, 'modal', 'water')">
+                </label>
+                <button v-if="modalRecord.form.waterPhoto" @click="modalRecord.form.waterPhoto = null" class="text-xs text-rose-500 hover:text-rose-700">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+              <div v-if="modalRecord.form.waterPhoto" class="mt-2">
+                <img :src="modalRecord.form.waterPhoto" class="w-full h-24 object-cover rounded-lg border border-slate-200">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ELECTRICITY FIELD -->
+          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+            <div class="flex items-center space-x-2 text-amber-500 font-bold text-sm">
+              <i class="fa-solid fa-bolt"></i>
+              <span>บันทึกมิเตอร์ไฟฟ้า</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์เดิม ({{ getPrevShortMonthYear(selectedMonth) }}):</label>
+                <input type="number" v-model.number="modalRecord.form.elecPrev" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">เลขมิเตอร์ใหม่ ({{ getShortMonthYear(selectedMonth) }}):</label>
+                <input type="number" v-model.number="modalRecord.form.elecCurr" class="w-full bg-white border-2 border-amber-400 rounded-xl px-3 py-1.5 text-sm font-bold">
+              </div>
+            </div>
+            <div class="text-xs flex justify-between text-slate-600 pt-1 font-medium">
+              <span>ใช้ไฟไป: <b>{{ modalElecUnits }}</b> หน่วย</span>
+              <span>ค่าไฟ: <b class="text-amber-600">฿{{ formatNumber(modalElecCost) }}</b></span>
+            </div>
+
+            <!-- Modal Photo Elec -->
+            <div class="pt-2 border-t border-slate-200">
+              <label class="block text-xs text-slate-500 mb-1 font-medium">ถ่ายภาพมิเตอร์ไฟ:</label>
+              <div class="flex items-center space-x-2">
+                <label class="cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-200 flex items-center space-x-1">
+                  <i class="fa-solid fa-camera"></i>
+                  <span>{{ modalRecord.form.elecPhoto ? 'เปลี่ยนภาพ' : 'ถ่ายภาพ / แนบรูป' }}</span>
+                  <input type="file" accept="image/*" capture="environment" class="hidden" @change="onPhotoSelected($event, 'modal', 'elec')">
+                </label>
+                <button v-if="modalRecord.form.elecPhoto" @click="modalRecord.form.elecPhoto = null" class="text-xs text-rose-500 hover:text-rose-700">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+              <div v-if="modalRecord.form.elecPhoto" class="mt-2">
+                <img :src="modalRecord.form.elecPhoto" class="w-full h-24 object-cover rounded-lg border border-slate-200">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Remarks Field -->
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">หมายเหตุ:</label>
+            <input type="text" v-model="modalRecord.form.remark" placeholder="เช่น นักฟุตบอล, ชำรุด, ห้องผู้ช่วย..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500">
+          </div>
+
+        </div>
+
+        <div class="p-5 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2">
+          <button @click="closeRecordModal" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs transition-all">
+            ยกเลิก
+          </button>
+          <button @click="saveSingleRecord" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl text-xs transition-all shadow-md">
+            <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SINGLE INVOICE MODAL -->
+    <div v-if="modalInvoice.show && modalInvoice.record" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+      <div class="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-fadeIn">
+        
+        <div class="bg-slate-900 text-white p-5 flex items-center justify-between">
+          <div>
+            <span class="text-xs text-blue-300 font-semibold uppercase">{{ modalInvoice.record.buildingName }}</span>
+            <h3 class="text-2xl font-black">ใบแจ้งหนี้ ห้อง {{ modalInvoice.record.roomNo }}</h3>
+          </div>
+          <button @click="modalInvoice.show = false" class="text-slate-400 hover:text-white text-xl">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
+            <span class="text-xs text-slate-500 font-medium">ประจำเดือน {{ formatMonthThai(selectedMonth) }}</span>
+            <span class="text-xs bg-blue-100 text-blue-800 font-bold px-2.5 py-0.5 rounded-full">ห้อง {{ modalInvoice.record.roomNo }}</span>
+          </div>
+
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead class="bg-slate-100 text-slate-700 font-bold">
+              <tr>
+                <th class="p-2 rounded-l-lg">รายการ</th>
+                <th class="p-2 text-center">หน่วย/รายละเอียด</th>
+                <th class="p-2 text-right rounded-r-lg">จำนวนเงิน</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700">
+              <tr>
+                <td class="p-2.5 font-medium">ค่าน้ำประปา</td>
+                <td class="p-2.5 text-center">
+                  {{ modalInvoice.record.waterType === 'flat_per_person' ? modalInvoice.record.occupants + ' คน' : modalInvoice.record.waterUnits + ' หน่วย' }}
+                </td>
+                <td class="p-2.5 text-right font-bold text-blue-600">฿{{ formatNumber(modalInvoice.record.waterCost) }}</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-medium">ค่าไฟฟ้า</td>
+                <td class="p-2.5 text-center">{{ modalInvoice.record.elecUnits }} หน่วย</td>
+                <td class="p-2.5 text-right font-bold text-amber-600">฿{{ formatNumber(modalInvoice.record.elecCost) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div v-if="modalInvoice.record.remark" class="text-xs bg-amber-50 border border-amber-200 p-2.5 rounded-xl text-amber-900">
+            <b>หมายเหตุ:</b> {{ modalInvoice.record.remark }}
+          </div>
+
+          <div class="bg-slate-900 text-white p-3.5 rounded-2xl flex justify-between items-center font-bold">
+            <span class="text-xs text-slate-300">ยอดรวมทั้งสิ้น:</span>
+            <span class="text-xl font-black text-amber-400">฿{{ formatNumber(modalInvoice.record.totalAmount) }}</span>
+          </div>
+
+          <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+            <button @click="modalInvoice.show = false" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl text-xs">
+              ปิด
+            </button>
+            <button @click="printSingleInvoice" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center space-x-1 shadow-md">
+              <i class="fa-solid fa-print mr-1"></i> พิมพ์ใบแจ้งหนี้
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- PURE PRINT LAYOUT 1: BUILDING METER LOG SHEET (PRINT-ONLY) - รูปแบบเอกสารจริงแบบที่ให้มา -->
+    <div id="print-building-sheet-area" class="print-only">
+      <div class="max-w-4xl mx-auto font-sans p-2">
+        
+        <!-- Header Text -->
+        <div class="text-right text-xs font-bold mb-1">
+          หอพัก{{ currentSheetBuilding.name }}{{ getShortMonthYear(selectedMonth) }}
+        </div>
+
+        <div class="text-center mb-4">
+          <h1 class="text-base font-bold tracking-wide">รายการแจ้งหนี้ค่าน้ำประปา- ค่าไฟฟ้าประจำหอพัก{{ currentSheetBuilding.name }}</h1>
+          <h2 class="text-sm font-bold mt-0.5">ประจำเดือน {{ formatMonthThai(selectedMonth) }}</h2>
+        </div>
+
+        <!-- Official Dorm Meter Table -->
+        <table class="w-full text-center text-xs print-table">
+          <thead>
+            <tr class="bg-slate-100">
+              <th rowspan="2" class="py-1.5 px-1 w-12">ห้อง</th>
+              <th colspan="3" class="py-1 px-1">เลขมิเตอร์ค่าน้ำประปา</th>
+              <th colspan="3" class="py-1 px-1">เลขมิเตอร์ค่าไฟฟ้า</th>
+              <th colspan="3" class="py-1 px-1">จำนวนเงิน (บาท)</th>
+              <th rowspan="2" class="py-1.5 px-1 w-24">หมายเหตุ</th>
+            </tr>
+            <tr class="bg-slate-100">
+              <th class="py-1 px-1 w-14">{{ getPrevShortMonthYear(selectedMonth) }}</th>
+              <th class="py-1 px-1 w-14">{{ getShortMonthYear(selectedMonth) }}</th>
+              <th class="py-1 px-1 w-12">จำนวนใช้</th>
+              <th class="py-1 px-1 w-14">{{ getPrevShortMonthYear(selectedMonth) }}</th>
+              <th class="py-1 px-1 w-14">{{ getShortMonthYear(selectedMonth) }}</th>
+              <th class="py-1 px-1 w-12">จำนวนใช้</th>
+              <th class="py-1 px-1 w-16">ค่าน้ำประปา</th>
+              <th class="py-1 px-1 w-16">ค่าไฟฟ้า</th>
+              <th class="py-1 px-1 w-16">รวมเงิน</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in currentBuildingSheetRows" :key="r.roomNo">
+              <td class="py-1 px-1 font-bold">{{ r.roomNo }}</td>
+              
+              <!-- Water -->
+              <td class="py-1 px-1">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? '-' : r.waterPrev) : '' }}</td>
+              <td class="py-1 px-1">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? r.occupants + ' คน' : r.waterCurr) : '' }}</td>
+              <td class="py-1 px-1 font-semibold">{{ r.hasRecord ? (r.waterType === 'flat_per_person' ? '0' : r.waterUnits) : '' }}</td>
+
+              <!-- Electricity -->
+              <td class="py-1 px-1">{{ r.hasRecord ? r.elecPrev : '' }}</td>
+              <td class="py-1 px-1">{{ r.hasRecord ? r.elecCurr : '' }}</td>
+              <td class="py-1 px-1 font-semibold">{{ r.hasRecord ? r.elecUnits : '' }}</td>
+
+              <!-- Amount -->
+              <td class="py-1 px-1 text-right">{{ r.hasRecord ? formatNumber(r.waterCost) : '' }}</td>
+              <td class="py-1 px-1 text-right">{{ r.hasRecord ? formatNumber(r.elecCost) : '' }}</td>
+              <td class="py-1 px-1 text-right font-bold">{{ r.hasRecord ? formatNumber(r.totalAmount) : '' }}</td>
+
+              <!-- Remarks -->
+              <td class="py-1 px-1 text-left text-[11px] font-sans">{{ r.remark || '' }}</td>
+            </tr>
+          </tbody>
+          <tfoot class="font-bold">
+            <tr>
+              <td class="py-1.5 px-1">รวมเงิน</td>
+              <td colspan="2" class="py-1 px-1"></td>
+              <td class="py-1 px-1">{{ formatNumber(currentSheetTotals.waterUnits) }}</td>
+              <td colspan="2" class="py-1 px-1"></td>
+              <td class="py-1 px-1">{{ formatNumber(currentSheetTotals.elecUnits) }}</td>
+              <td class="py-1 px-1 text-right">{{ formatNumber(currentSheetTotals.waterCost) }}</td>
+              <td class="py-1 px-1 text-right">{{ formatNumber(currentSheetTotals.elecCost) }}</td>
+              <td class="py-1 px-1 text-right font-black">{{ formatNumber(currentSheetTotals.totalAmount) }}</td>
+              <td class="py-1 px-1"></td>
+            </tr>
+          </tfoot>
+        </table>
+
+      </div>
+    </div>
+
+    <!-- PURE PRINT LAYOUT 2: MONTHLY SUMMARY REPORT (PRINT-ONLY) -->
+    <div id="print-monthly-summary" class="print-only">
+      <div class="p-8 max-w-4xl mx-auto font-sans">
+        <div class="text-center pb-4 border-b-2 border-slate-900 mb-6">
+          <h1 class="text-2xl font-black">รายงานสรุปค่าสาธารณูปโภคประจำเดือน</h1>
+          <p class="text-sm text-slate-600">ประจำเดือน {{ formatMonthThai(selectedMonth) }}</p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 text-center my-6">
+          <div class="border p-3 rounded-xl bg-slate-50">
+            <span class="text-xs text-slate-500 block">รายได้ค่าน้ำประปารวม</span>
+            <span class="text-lg font-bold">฿{{ formatNumber(monthlyAnalytics.waterRevenue) }}</span>
+          </div>
+          <div class="border p-3 rounded-xl bg-slate-50">
+            <span class="text-xs text-slate-500 block">รายได้ค่าไฟฟ้ารวม</span>
+            <span class="text-lg font-bold">฿{{ formatNumber(monthlyAnalytics.elecRevenue) }}</span>
+          </div>
+          <div class="border p-3 rounded-xl bg-slate-900 text-white">
+            <span class="text-xs text-slate-300 block">รายได้รวมทั้งสิ้น</span>
+            <span class="text-xl font-black">฿{{ formatNumber(monthlyAnalytics.totalRevenue) }}</span>
+          </div>
+        </div>
+
+        <table class="w-full text-left text-xs border-collapse my-6 print-table">
+          <thead>
+            <tr class="bg-slate-200 text-slate-900 font-bold">
+              <th class="py-2 px-2">ชื่ออาคาร</th>
+              <th class="py-2 px-2 text-center">จดเสร็จ</th>
+              <th class="py-2 px-2 text-right">หน่วยน้ำ</th>
+              <th class="py-2 px-2 text-right">ค่าน้ำ (บาท)</th>
+              <th class="py-2 px-2 text-right">หน่วยไฟ</th>
+              <th class="py-2 px-2 text-right">ค่าไฟ (บาท)</th>
+              <th class="py-2 px-2 text-right">ยอดรวม (บาท)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-300">
+            <tr v-for="b in monthlyBuildingStats" :key="b.id">
+              <td class="py-2 px-2 font-bold">{{ b.name }}</td>
+              <td class="py-2 px-2 text-center">{{ b.recorded }}/{{ b.total }}</td>
+              <td class="py-2 px-2 text-right">{{ formatNumber(b.waterUnits) }}</td>
+              <td class="py-2 px-2 text-right">฿{{ formatNumber(b.waterCost) }}</td>
+              <td class="py-2 px-2 text-right">{{ formatNumber(b.elecUnits) }}</td>
+              <td class="py-2 px-2 text-right">฿{{ formatNumber(b.elecCost) }}</td>
+              <td class="py-2 px-2 text-right font-bold">฿{{ formatNumber(b.totalCost) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pt-12 grid grid-cols-2 gap-12 text-xs text-center">
+          <div>
+            <div class="border-b border-slate-400 h-10 mb-1"></div>
+            <span>ผู้จัดทำรายงาน</span>
+          </div>
+          <div>
+            <div class="border-b border-slate-400 h-10 mb-1"></div>
+            <span>ผู้อนุมัติ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PURE PRINT LAYOUT 3: BATCH PRINTING INVOICES (PRINT-ONLY) -->
+    <div id="print-area" class="print-only">
+      <div v-for="(rec, idx) in printableRecords" :key="rec.roomId" class="page-break p-8 max-w-2xl mx-auto font-sans">
+        <div class="border-2 border-slate-800 p-6 rounded-2xl space-y-4">
+          <div class="text-center pb-3 border-b-2 border-slate-800">
+            <h2 class="text-2xl font-black">ใบแจ้งหนี้ค่าน้ำประปา - ค่าไฟฟ้า</h2>
+            <p class="text-sm text-slate-600">ประจำเดือน {{ formatMonthThai(selectedMonth) }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 text-sm font-bold py-2 border-b border-slate-300">
+            <div>อาคาร: {{ rec.buildingName }}</div>
+            <div class="text-right">ห้องพักเลขที่: {{ rec.roomNo }}</div>
+          </div>
+
+          <table class="w-full text-left text-xs border-collapse my-4 print-table">
+            <thead>
+              <tr class="bg-slate-200 text-slate-900 font-bold">
+                <th class="py-2 px-2">รายการ</th>
+                <th class="py-2 px-2 text-center">มิเตอร์เดิม</th>
+                <th class="py-2 px-2 text-center">มิเตอร์ใหม่</th>
+                <th class="py-2 px-2 text-center">หน่วยที่ใช้</th>
+                <th class="py-2 px-2 text-right">จำนวนเงิน (บาท)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-300">
+              <tr>
+                <td class="py-2 px-2">ค่าน้ำประปา ({{ rec.waterType === 'flat_per_person' ? 'เหมา ' + rec.occupants + ' คน' : 'อัตราหน่วยละ 20 บ.' }})</td>
+                <td class="py-2 px-2 text-center">{{ rec.waterType === 'flat_per_person' ? '-' : rec.waterPrev }}</td>
+                <td class="py-2 px-2 text-center">{{ rec.waterType === 'flat_per_person' ? '-' : rec.waterCurr }}</td>
+                <td class="py-2 px-2 text-center font-bold">{{ rec.waterType === 'flat_per_person' ? rec.occupants + ' คน' : rec.waterUnits }}</td>
+                <td class="py-2 px-2 text-right font-bold">฿{{ formatNumber(rec.waterCost) }}</td>
+              </tr>
+              <tr>
+                <td class="py-2 px-2">ค่าไฟฟ้า (หน่วยละ {{ settings.defaultElecRate }} บ.)</td>
+                <td class="py-2 px-2 text-center">{{ rec.elecPrev }}</td>
+                <td class="py-2 px-2 text-center">{{ rec.elecCurr }}</td>
+                <td class="py-2 px-2 text-center font-bold">{{ rec.elecUnits }}</td>
+                <td class="py-2 px-2 text-right font-bold">฿{{ formatNumber(rec.elecCost) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div v-if="rec.remark" class="text-xs italic text-slate-700">
+            หมายเหตุ: {{ rec.remark }}
+          </div>
+
+          <div class="bg-slate-100 p-3 rounded-lg flex justify-between items-center font-black text-base border border-slate-400">
+            <span>ยอดรวมทั้งสิ้น:</span>
+            <span class="text-xl">฿{{ formatNumber(rec.totalAmount) }}</span>
+          </div>
+
+          <div class="pt-8 grid grid-cols-2 gap-12 text-xs text-center">
+            <div>
+              <div class="border-b border-slate-400 h-10 mb-1"></div>
+              <span>เจ้าหน้าที่จดมิเตอร์</span>
+            </div>
+            <div>
+              <div class="border-b border-slate-400 h-10 mb-1"></div>
+              <span>ผู้รับใบแจ้งหนี้</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- APPLICATION SCRIPT -->
+  <script>
+    // Building Configurations & Exact Ranges according to prompt
+    const BUILDINGS_CONFIG = [
+      {
+        id: 'thachana',
+        name: 'ท่าชนะ',
+        ranges: '101-110,201-210,301-310,401-410',
+        waterType: 'unit',
+        waterRate: 20
+      },
+      {
+        id: 'thaphet',
+        name: 'ท่าเพชร',
+        ranges: '101,201-224,301-324,401-424,501-524',
+        waterType: 'unit',
+        waterRate: 20
+      },
+      {
+        id: 'thathong',
+        name: 'ท่าทอง',
+        ranges: '101,201-224,301-324,401-424,501-524',
+        waterType: 'unit',
+        waterRate: 20
+      },
+      {
+        id: 'prapassorn',
+        name: 'ประภัสสร',
+        groups: [
+          {
+            ranges: '4114,4201,4202,4301,4302,4401,4402,4501,4502',
+            waterType: 'unit',
+            waterRate: 20,
+            note: 'คิดตามหน่วย 20 บ./หน่วย'
+          },
+          {
+            ranges: '4303-4317,4403-4417,4503-4517',
+            waterType: 'flat_per_person',
+            waterRate: 100,
+            note: 'เหมา 100 บ./คน'
+          }
+        ]
+      },
+      {
+        id: 'ratchaprapha',
+        name: 'รัชประภา',
+        ranges: '101-110,201-210,301-310,401-410',
+        waterType: 'unit',
+        waterRate: 20
+      },
+      {
+        id: 'wiphawadi',
+        name: 'วิภาวดี',
+        ranges: '1101-1107,1201-1209,1301-1309,1401-1402',
+        waterType: 'unit',
+        waterRate: 20
+      },
+      {
+        id: 'chaiya',
+        name: 'ไชยา',
+        ranges: '2101-2107,2201-2209,2301-2309,2401-2402',
+        waterType: 'unit',
+        waterRate: 20
+      }
+    ];
+
+    // Helper to parse numeric room ranges
+    function parseRanges(rangeStr) {
+      const rooms = [];
+      const parts = rangeStr.split(',').map(s => s.trim());
+      parts.forEach(p => {
+        if (p.includes('-')) {
+          const [start, end] = p.split('-').map(n => parseInt(n.trim(), 10));
+          for (let i = start; i <= end; i++) {
+            rooms.push(i.toString());
+          }
+        } else if (p) {
+          rooms.push(p);
+        }
+      });
+      return rooms;
+    }
+
+    // Helper to extract floor number from room string
+    function extractFloor(roomNo) {
+      const num = parseInt(roomNo, 10);
+      if (num >= 4000) return Math.floor((num - 4000) / 100);
+      if (num >= 2000) return Math.floor((num - 2000) / 100);
+      if (num >= 1000) return Math.floor((num - 1000) / 100);
+      if (num >= 100) return Math.floor(num / 100);
+      return 1;
+    }
+
+    // Build Master Room List
+    function generateMasterRooms() {
+      const allRooms = [];
+      
+      BUILDINGS_CONFIG.forEach(b => {
+        if (b.groups) {
+          b.groups.forEach(g => {
+            const roomNos = parseRanges(g.ranges);
+            roomNos.forEach(rNo => {
+              allRooms.push({
+                id: `${b.id}_${rNo}`,
+                buildingId: b.id,
+                buildingName: b.name,
+                roomNo: rNo,
+                floor: extractFloor(rNo),
+                waterType: g.waterType,
+                waterRate: g.waterRate,
+                waterNote: g.note
+              });
+            });
+          });
+        } else {
+          const roomNos = parseRanges(b.ranges);
+          roomNos.forEach(rNo => {
+            allRooms.push({
+              id: `${b.id}_${rNo}`,
+              buildingId: b.id,
+              buildingName: b.name,
+              roomNo: rNo,
+              floor: extractFloor(rNo),
+              waterType: b.waterType,
+              waterRate: b.waterRate,
+              waterNote: 'คิดตามหน่วย 20 บ./หน่วย'
+            });
+          });
+        }
+      });
+
+      return allRooms;
+    }
+
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const defaultMonth = `${yyyy}-${mm}`;
+
+        return {
+          currentTab: 'buildingSheet', // 'grid', 'walkthrough', 'buildingSheet', 'monthlyReport', 'reports', 'sheets', 'settings'
+          selectedMonth: defaultMonth,
+          masterRooms: generateMasterRooms(),
+          records: {}, // Keyed by month -> { roomId: recordData }
+          
+          // Filters
+          selectedBuildingFilter: 'ALL',
+          selectedFloorFilter: 'ALL',
+          selectedStatusFilter: 'ALL',
+          searchQuery: '',
+          reportBuildingFilter: 'ALL',
+          
+          // Building Sheet Selected Building
+          sheetSelectedBuilding: 'thachana',
+
+          // Walkthrough Mode State
+          walkthroughBuilding: 'ALL',
+          walkthroughStatusFilter: 'PENDING',
+          currentWalkIndex: 0,
+          walkForm: {
+            waterPrev: 0,
+            waterCurr: 0,
+            occupants: 1,
+            elecPrev: 0,
+            elecCurr: 0,
+            remark: '',
+            waterPhoto: null,
+            elecPhoto: null
+          },
+
+          // Settings
+          settings: {
+            defaultElecRate: 7,
+            defaultWaterRate: 20,
+            defaultFlatWaterRate: 100
+          },
+
+          // Single Record Modal
+          modalRecord: {
+            show: false,
+            room: null,
+            form: {
+              waterPrev: 0,
+              waterCurr: 0,
+              occupants: 1,
+              elecPrev: 0,
+              elecCurr: 0,
+              remark: '',
+              waterPhoto: null,
+              elecPhoto: null
+            }
+          },
+
+          // Single Invoice Modal
+          modalInvoice: {
+            show: false,
+            record: null
+          },
+
+          // Selection for batch printing
+          selectedRoomIdsForPrint: [],
+          printableRecords: [],
+
+          // Toast
+          toast: {
+            show: false,
+            message: '',
+            type: 'success'
+          }
+        };
+      },
+
+      computed: {
+        buildingList() {
+          return BUILDINGS_CONFIG.map(b => ({ id: b.id, name: b.name }));
+        },
+
+        currentMonthRecords() {
+          return this.records[this.selectedMonth] || {};
+        },
+
+        monthRecordsArray() {
+          return Object.values(this.currentMonthRecords);
+        },
+
+        currentSheetBuilding() {
+          return BUILDINGS_CONFIG.find(b => b.id === this.sheetSelectedBuilding) || BUILDINGS_CONFIG[0];
+        },
+
+        // Building Meter Sheet Rows for Table Format
+        currentBuildingSheetRows() {
+          const rooms = this.masterRooms.filter(r => r.buildingId === this.sheetSelectedBuilding);
+          
+          return rooms.map(room => {
+            const rec = this.getRecord(room.id);
+            const prevRec = this.getPreviousMonthRecord(room.id);
+
+            return {
+              roomId: room.id,
+              roomNo: room.roomNo,
+              waterType: room.waterType,
+              hasRecord: !!rec,
+
+              waterPrev: rec ? rec.waterPrev : (prevRec ? prevRec.waterCurr : 0),
+              waterCurr: rec ? rec.waterCurr : 0,
+              waterUnits: rec ? rec.waterUnits : 0,
+              waterCost: rec ? rec.waterCost : 0,
+              occupants: rec ? rec.occupants : 1,
+
+              elecPrev: rec ? rec.elecPrev : (prevRec ? prevRec.elecCurr : 0),
+              elecCurr: rec ? rec.elecCurr : 0,
+              elecUnits: rec ? rec.elecUnits : 0,
+              elecCost: rec ? rec.elecCost : 0,
+
+              totalAmount: rec ? rec.totalAmount : 0,
+              remark: rec ? (rec.remark || '') : ''
+            };
+          });
+        },
+
+        currentSheetTotals() {
+          const rows = this.currentBuildingSheetRows;
+          return {
+            waterUnits: rows.reduce((sum, r) => sum + (r.waterUnits || 0), 0),
+            elecUnits: rows.reduce((sum, r) => sum + (r.elecUnits || 0), 0),
+            waterCost: rows.reduce((sum, r) => sum + (r.waterCost || 0), 0),
+            elecCost: rows.reduce((sum, r) => sum + (r.elecCost || 0), 0),
+            totalAmount: rows.reduce((sum, r) => sum + (r.totalAmount || 0), 0)
+          };
+        },
+
+        stats() {
+          const totalRooms = this.masterRooms.length;
+          const monthRecs = Object.values(this.currentMonthRecords);
+          const recordedCount = monthRecs.length;
+          const totalRevenue = monthRecs.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+
+          return {
+            totalRooms,
+            recordedCount,
+            totalRevenue
+          };
+        },
+
+        // Monthly Summary Analytics
+        monthlyAnalytics() {
+          const monthRecs = Object.values(this.currentMonthRecords);
+          const totalRev = monthRecs.reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+          const waterRev = monthRecs.reduce((sum, r) => sum + (r.waterCost || 0), 0);
+          const elecRev = monthRecs.reduce((sum, r) => sum + (r.elecCost || 0), 0);
+          const wUnits = monthRecs.reduce((sum, r) => sum + (r.waterUnits || 0), 0);
+          const eUnits = monthRecs.reduce((sum, r) => sum + (r.elecUnits || 0), 0);
+
+          const totalRooms = this.masterRooms.length;
+          const recordedCount = monthRecs.length;
+          const completionPercentage = totalRooms > 0 ? ((recordedCount / totalRooms) * 100).toFixed(1) : 0;
+          const avgPerRoom = recordedCount > 0 ? (totalRev / recordedCount) : 0;
+
+          return {
+            totalRevenue: totalRev,
+            waterRevenue: waterRev,
+            elecRevenue: elecRev,
+            waterUnits: wUnits,
+            elecUnits: eUnits,
+            completionPercentage,
+            avgPerRoom
+          };
+        },
+
+        monthlyBuildingStats() {
+          return BUILDINGS_CONFIG.map(b => {
+            const bRooms = this.masterRooms.filter(r => r.buildingId === b.id);
+            const total = bRooms.length;
+            
+            let recorded = 0;
+            let waterUnits = 0;
+            let waterCost = 0;
+            let elecUnits = 0;
+            let elecCost = 0;
+            let totalCost = 0;
+
+            bRooms.forEach(room => {
+              const rec = this.getRecord(room.id);
+              if (rec) {
+                recorded++;
+                waterUnits += (rec.waterUnits || 0);
+                waterCost += (rec.waterCost || 0);
+                elecUnits += (rec.elecUnits || 0);
+                elecCost += (rec.elecCost || 0);
+                totalCost += (rec.totalAmount || 0);
+              }
+            });
+
+            return {
+              id: b.id,
+              name: b.name,
+              total,
+              recorded,
+              waterUnits,
+              waterCost,
+              elecUnits,
+              elecCost,
+              totalCost
+            };
+          });
+        },
+
+        groupedFilteredRooms() {
+          let rooms = [...this.masterRooms];
+
+          if (this.selectedBuildingFilter !== 'ALL') {
+            rooms = rooms.filter(r => r.buildingId === this.selectedBuildingFilter);
+          }
+
+          if (this.selectedFloorFilter !== 'ALL') {
+            rooms = rooms.filter(r => r.floor === Number(this.selectedFloorFilter));
+          }
+
+          if (this.selectedStatusFilter === 'RECORDED') {
+            rooms = rooms.filter(r => !!this.getRecord(r.id));
+          } else if (this.selectedStatusFilter === 'PENDING') {
+            rooms = rooms.filter(r => !this.getRecord(r.id));
+          }
+
+          if (this.searchQuery.trim()) {
+            const q = this.searchQuery.trim().toLowerCase();
+            rooms = rooms.filter(r => r.roomNo.toLowerCase().includes(q) || r.buildingName.toLowerCase().includes(q));
+          }
+
+          const groups = {};
+          rooms.forEach(r => {
+            if (!groups[r.buildingId]) {
+              groups[r.buildingId] = {
+                buildingId: r.buildingId,
+                buildingName: r.buildingName,
+                waterNote: r.waterNote,
+                rooms: []
+              };
+            }
+            groups[r.buildingId].rooms.push(r);
+          });
+
+          return Object.values(groups);
+        },
+
+        pendingRoomsList() {
+          let rooms = [...this.masterRooms];
+          if (this.walkthroughBuilding !== 'ALL') {
+            rooms = rooms.filter(r => r.buildingId === this.walkthroughBuilding);
+          }
+          if (this.walkthroughStatusFilter === 'PENDING') {
+            rooms = rooms.filter(r => !this.getRecord(r.id));
+          }
+          return rooms;
+        },
+
+        currentWalkRoom() {
+          if (this.pendingRoomsList.length === 0) return null;
+          if (this.currentWalkIndex >= this.pendingRoomsList.length) {
+            this.currentWalkIndex = 0;
+          }
+          return this.pendingRoomsList[this.currentWalkIndex];
+        },
+
+        walkWaterUnits() {
+          if (!this.currentWalkRoom || this.currentWalkRoom.waterType === 'flat_per_person') return 0;
+          return Math.max(0, (this.walkForm.waterCurr || 0) - (this.walkForm.waterPrev || 0));
+        },
+        walkWaterCost() {
+          if (!this.currentWalkRoom) return 0;
+          if (this.currentWalkRoom.waterType === 'flat_per_person') {
+            return (this.walkForm.occupants || 0) * (this.settings.defaultFlatWaterRate || 100);
+          }
+          return this.walkWaterUnits * (this.settings.defaultWaterRate || 20);
+        },
+        walkElecUnits() {
+          return Math.max(0, (this.walkForm.elecCurr || 0) - (this.walkForm.elecPrev || 0));
+        },
+        walkElecCost() {
+          return this.walkElecUnits * (this.settings.defaultElecRate || 7);
+        },
+        walkTotalAmount() {
+          return this.walkWaterCost + this.walkElecCost;
+        },
+
+        modalWaterUnits() {
+          if (!this.modalRecord.room || this.modalRecord.room.waterType === 'flat_per_person') return 0;
+          return Math.max(0, (this.modalRecord.form.waterCurr || 0) - (this.modalRecord.form.waterPrev || 0));
+        },
+        modalWaterCost() {
+          if (!this.modalRecord.room) return 0;
+          if (this.modalRecord.room.waterType === 'flat_per_person') {
+            return (this.modalRecord.form.occupants || 0) * (this.settings.defaultFlatWaterRate || 100);
+          }
+          return this.modalWaterUnits * (this.settings.defaultWaterRate || 20);
+        },
+        modalElecUnits() {
+          return Math.max(0, (this.modalRecord.form.elecCurr || 0) - (this.modalRecord.form.elecPrev || 0));
+        },
+        modalElecCost() {
+          return this.modalElecUnits * (this.settings.defaultElecRate || 7);
+        },
+        modalTotalAmount() {
+          return this.modalWaterCost + this.modalElecCost;
+        },
+
+        filteredReportRecords() {
+          let list = Object.values(this.currentMonthRecords);
+          if (this.reportBuildingFilter !== 'ALL') {
+            list = list.filter(r => r.buildingId === this.reportBuildingFilter);
+          }
+          return list;
+        },
+
+        isAllSelectedForPrint() {
+          return this.filteredReportRecords.length > 0 && 
+                 this.selectedRoomIdsForPrint.length === this.filteredReportRecords.length;
+        }
+      },
+
+      watch: {
+        currentWalkRoom: {
+          immediate: true,
+          handler(newRoom) {
+            if (newRoom) {
+              const rec = this.getRecord(newRoom.id);
+              const prevRec = this.getPreviousMonthRecord(newRoom.id);
+
+              this.walkForm.waterPrev = rec ? rec.waterPrev : (prevRec ? prevRec.waterCurr : 0);
+              this.walkForm.waterCurr = rec ? rec.waterCurr : (prevRec ? prevRec.waterCurr : 0);
+              this.walkForm.occupants = rec ? (rec.occupants || 1) : 1;
+
+              this.walkForm.elecPrev = rec ? rec.elecPrev : (prevRec ? prevRec.elecCurr : 0);
+              this.walkForm.elecCurr = rec ? rec.elecCurr : (prevRec ? prevRec.elecCurr : 0);
+              this.walkForm.remark = rec ? (rec.remark || '') : '';
+
+              this.walkForm.waterPhoto = rec ? rec.waterPhoto : null;
+              this.walkForm.elecPhoto = rec ? rec.elecPhoto : null;
+            }
+          }
+        }
+      },
+
+      created() {
+        this.loadSettings();
+        this.loadDatabase();
+        // Seed sample data if empty so user immediately sees the report filled
+        if (Object.keys(this.currentMonthRecords).length === 0) {
+          this.seedSampleData();
+        }
+      },
+
+      methods: {
+        // Image Compression & Photo Handling
+        onPhotoSelected(event, mode, meterType) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          this.compressImage(file, (base64Img) => {
+            if (mode === 'walk') {
+              if (meterType === 'water') this.walkForm.waterPhoto = base64Img;
+              if (meterType === 'elec') this.walkForm.elecPhoto = base64Img;
+            } else if (mode === 'modal') {
+              if (meterType === 'water') this.modalRecord.form.waterPhoto = base64Img;
+              if (meterType === 'elec') this.modalRecord.form.elecPhoto = base64Img;
+            }
+          });
+        },
+
+        compressImage(file, callback) {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 500;
+              const scaleSize = MAX_WIDTH / img.width;
+              if (scaleSize < 1) {
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+              } else {
+                canvas.width = img.width;
+                canvas.height = img.height;
+              }
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              callback(canvas.toDataURL('image/jpeg', 0.6));
+            };
+          };
+        },
+
+        printBuildingSheet() {
+          window.print();
+        },
+
+        printMonthlySummary() {
+          window.print();
+        },
+
+        // Data Persistence
+        loadSettings() {
+          const s = localStorage.getItem('meter_settings');
+          if (s) {
+            try { this.settings = JSON.parse(s); } catch (e) {}
+          }
+        },
+        saveSettings() {
+          localStorage.setItem('meter_settings', JSON.stringify(this.settings));
+          this.showToast('บันทึกการตั้งค่าเรียบร้อยแล้ว');
+        },
+
+        loadDatabase() {
+          const db = localStorage.getItem('meter_records_db');
+          if (db) {
+            try { this.records = JSON.parse(db); } catch (e) { this.records = {}; }
+          }
+        },
+        saveDatabase() {
+          localStorage.setItem('meter_records_db', JSON.stringify(this.records));
+        },
+
+        getRecord(roomId) {
+          return this.currentMonthRecords[roomId] || null;
+        },
+
+        getPreviousMonthRecord(roomId) {
+          const [year, month] = this.selectedMonth.split('-').map(Number);
+          let prevY = year;
+          let prevM = month - 1;
+          if (prevM < 1) {
+            prevM = 12;
+            prevY--;
+          }
+          const prevKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
+          return (this.records[prevKey] && this.records[prevKey][roomId]) ? this.records[prevKey][roomId] : null;
+        },
+
+        updateRoomRemark(roomId, newRemark) {
+          if (!this.records[this.selectedMonth]) {
+            this.records[this.selectedMonth] = {};
+          }
+          if (this.records[this.selectedMonth][roomId]) {
+            this.records[this.selectedMonth][roomId].remark = newRemark;
+            this.saveDatabase();
+          }
+        },
+
+        getBuildingRecordedCount(bId) {
+          const bRooms = this.masterRooms.filter(r => r.buildingId === bId);
+          return bRooms.filter(r => !!this.getRecord(r.id)).length;
+        },
+
+        getBuildingTotalRooms(bId) {
+          return this.masterRooms.filter(r => r.buildingId === bId).length;
+        },
+
+        onMonthChange() {
+          this.selectedRoomIdsForPrint = [];
+        },
+
+        // Single Record Modal Handlers
+        openRecordModal(room) {
+          this.modalRecord.room = room;
+          const rec = this.getRecord(room.id);
+          const prevRec = this.getPreviousMonthRecord(room.id);
+
+          this.modalRecord.form = {
+            waterPrev: rec ? rec.waterPrev : (prevRec ? prevRec.waterCurr : 0),
+            waterCurr: rec ? rec.waterCurr : (prevRec ? prevRec.waterCurr : 0),
+            occupants: rec ? (rec.occupants || 1) : 1,
+            elecPrev: rec ? rec.elecPrev : (prevRec ? prevRec.elecCurr : 0),
+            elecCurr: rec ? rec.elecCurr : (prevRec ? prevRec.elecCurr : 0),
+            remark: rec ? (rec.remark || '') : '',
+            waterPhoto: rec ? rec.waterPhoto : null,
+            elecPhoto: rec ? rec.elecPhoto : null
+          };
+
+          this.modalRecord.show = true;
+        },
+
+        closeRecordModal() {
+          this.modalRecord.show = false;
+        },
+
+        saveSingleRecord() {
+          const room = this.modalRecord.room;
+          if (!room) return;
+
+          const recData = {
+            roomId: room.id,
+            buildingId: room.buildingId,
+            buildingName: room.buildingName,
+            roomNo: room.roomNo,
+            floor: room.floor,
+            waterType: room.waterType,
+            
+            waterPrev: this.modalRecord.form.waterPrev || 0,
+            waterCurr: this.modalRecord.form.waterCurr || 0,
+            occupants: this.modalRecord.form.occupants || 1,
+            waterUnits: this.modalWaterUnits,
+            waterCost: this.modalWaterCost,
+            waterPhoto: this.modalRecord.form.waterPhoto || null,
+
+            elecPrev: this.modalRecord.form.elecPrev || 0,
+            elecCurr: this.modalRecord.form.elecCurr || 0,
+            elecUnits: this.modalElecUnits,
+            elecCost: this.modalElecCost,
+            elecPhoto: this.modalRecord.form.elecPhoto || null,
+
+            remark: this.modalRecord.form.remark || '',
+            totalAmount: this.modalTotalAmount,
+            recordedAt: new Date().toISOString()
+          };
+
+          if (!this.records[this.selectedMonth]) {
+            this.records[this.selectedMonth] = {};
+          }
+
+          this.records[this.selectedMonth][room.id] = recData;
+          this.saveDatabase();
+
+          this.showToast(`บันทึกมิเตอร์ ห้อง ${room.roomNo} เรียบร้อยแล้ว`);
+          this.closeRecordModal();
+        },
+
+        openQuickWalkthrough() {
+          this.currentTab = 'walkthrough';
+          this.currentWalkIndex = 0;
+        },
+
+        resetWalkthrough() {
+          this.currentWalkIndex = 0;
+        },
+
+        prevWalkRoom() {
+          if (this.currentWalkIndex > 0) {
+            this.currentWalkIndex--;
+          }
+        },
+
+        skipWalkRoom() {
+          if (this.currentWalkIndex < this.pendingRoomsList.length - 1) {
+            this.currentWalkIndex++;
+          } else {
+            this.currentWalkIndex = 0;
+          }
+        },
+
+        saveAndNextWalk() {
+          const room = this.currentWalkRoom;
+          if (!room) return;
+
+          const recData = {
+            roomId: room.id,
+            buildingId: room.buildingId,
+            buildingName: room.buildingName,
+            roomNo: room.roomNo,
+            floor: room.floor,
+            waterType: room.waterType,
+
+            waterPrev: this.walkForm.waterPrev || 0,
+            waterCurr: this.walkForm.waterCurr || 0,
+            occupants: this.walkForm.occupants || 1,
+            waterUnits: this.walkWaterUnits,
+            waterCost: this.walkWaterCost,
+            waterPhoto: this.walkForm.waterPhoto || null,
+
+            elecPrev: this.walkForm.elecPrev || 0,
+            elecCurr: this.walkForm.elecCurr || 0,
+            elecUnits: this.walkElecUnits,
+            elecCost: this.walkElecCost,
+            elecPhoto: this.walkForm.elecPhoto || null,
+
+            remark: this.walkForm.remark || '',
+            totalAmount: this.walkTotalAmount,
+            recordedAt: new Date().toISOString()
+          };
+
+          if (!this.records[this.selectedMonth]) {
+            this.records[this.selectedMonth] = {};
+          }
+
+          this.records[this.selectedMonth][room.id] = recData;
+          this.saveDatabase();
+
+          this.showToast(`บันทึกมิเตอร์ ห้อง ${room.roomNo} สำเร็จ`);
+
+          if (this.pendingRoomsList.length > 1) {
+            if (this.walkthroughStatusFilter === 'PENDING') {
+              this.currentWalkIndex = 0;
+            } else {
+              this.currentWalkIndex++;
+            }
+          }
+        },
+
+        openSingleInvoiceModal(rec) {
+          this.modalInvoice.record = rec;
+          this.modalInvoice.show = true;
+        },
+
+        printSingleInvoice() {
+          this.printableRecords = [this.modalInvoice.record];
+          this.$nextTick(() => {
+            window.print();
+          });
+        },
+
+        toggleSelectAllForPrint(e) {
+          if (e.target.checked) {
+            this.selectedRoomIdsForPrint = this.filteredReportRecords.map(r => r.roomId);
+          } else {
+            this.selectedRoomIdsForPrint = [];
+          }
+        },
+
+        printAllSelectedPDF() {
+          if (this.selectedRoomIdsForPrint.length === 0) return;
+          this.printableRecords = this.filteredReportRecords.filter(r => this.selectedRoomIdsForPrint.includes(r.roomId));
+          this.$nextTick(() => {
+            window.print();
+          });
+        },
+
+        downloadCSV() {
+          const list = this.monthRecordsArray;
+          if (list.length === 0) {
+            this.showToast('ไม่มีข้อมูลสำหรับส่งออกในเดือนนี้', 'error');
+            return;
+          }
+
+          let csv = "\uFEFF"; // UTF-8 BOM
+          csv += "เดือน,อาคาร,เลขห้อง,ชั้น,ประเภทค่าน้ำ,มิเตอร์น้ำเดิม,มิเตอร์น้ำใหม่/คน,หน่วยน้ำ,ค่าน้ำ(บาท),มิเตอร์ไฟเดิม,มิเตอร์ไฟใหม่,หน่วยไฟฟ้า,ค่าไฟฟ้า(บาท),รวมทั้งสิ้น(บาท),หมายเหตุ\n";
+
+          list.forEach(r => {
+            const wVal = r.waterType === 'flat_per_person' ? `${r.occupants} คน` : r.waterCurr;
+            csv += `"${this.selectedMonth}","${r.buildingName}","${r.roomNo}","${r.floor}","${r.waterType}","${r.waterPrev}","${wVal}","${r.waterUnits}","${r.waterCost}","${r.elecPrev}","${r.elecCurr}","${r.elecUnits}","${r.elecCost}","${r.totalAmount}","${r.remark || ''}"\n`;
+          });
+
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", `รายงานมิเตอร์_${this.selectedMonth}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          this.showToast('ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว');
+        },
+
+        copyForGoogleSheets() {
+          const list = this.monthRecordsArray;
+          if (list.length === 0) {
+            this.showToast('ไม่มีข้อมูลสำหรับคัดลอกในเดือนนี้', 'error');
+            return;
+          }
+
+          let tsv = "เดือน\tอาคาร\tเลขห้อง\tชั้น\tประเภทค่าน้ำ\tมิเตอร์น้ำเดิม\tมิเตอร์น้ำใหม่/คน\tหน่วยน้ำ\tค่าน้ำ(บาท)\tมิเตอร์ไฟเดิม\tมิเตอร์ไฟใหม่\tหน่วยไฟฟ้า\tค่าไฟฟ้า(บาท)\tรวมทั้งสิ้น(บาท)\tหมายเหตุ\n";
+
+          list.forEach(r => {
+            const wVal = r.waterType === 'flat_per_person' ? `${r.occupants} คน` : r.waterCurr;
+            tsv += `${this.selectedMonth}\t${r.buildingName}\t${r.roomNo}\t${r.floor}\t${r.waterType}\t${r.waterPrev}\t${wVal}\t${r.waterUnits}\t${r.waterCost}\t${r.elecPrev}\t${r.elecCurr}\t${r.elecUnits}\t${r.elecCost}\t${r.totalAmount}\t${r.remark || ''}\n`;
+          });
+
+          const textarea = document.createElement("textarea");
+          textarea.value = tsv;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+
+          this.showToast('คัดลอกข้อมูลลง Clipboard แล้ว! กด Ctrl+V ใน Google Sheets ได้ทันที');
+        },
+
+        // Sample Seed Data matching user's image (Thachana, football players, zero usage etc.)
+        seedSampleData() {
+          if (!this.records[this.selectedMonth]) {
+            this.records[this.selectedMonth] = {};
+          }
+
+          this.masterRooms.forEach(room => {
+            let baseWater = Math.floor(Math.random() * 200) + 800;
+            let waterUsed = Math.floor(Math.random() * 12) + 1;
+            let occupants = Math.floor(Math.random() * 2) + 1;
+
+            let baseElec = Math.floor(Math.random() * 1000) + 6000;
+            let elecUsed = Math.floor(Math.random() * 150) + 40;
+            let remark = '';
+
+            // Simulate specific data matching image for Thachana rooms 103-110 (Football team zero usage)
+            if (room.buildingId === 'thachana' && parseInt(room.roomNo) >= 103 && parseInt(room.roomNo) <= 110) {
+              waterUsed = 0;
+              elecUsed = 0;
+              remark = 'นักฟุตบอล';
+            }
+
+            const isFlat = room.waterType === 'flat_per_person';
+            const wCost = isFlat ? (occupants * 100) : (waterUsed * 20);
+            const eCost = elecUsed * 6; // Standard elec rate
+
+            this.records[this.selectedMonth][room.id] = {
+              roomId: room.id,
+              buildingId: room.buildingId,
+              buildingName: room.buildingName,
+              roomNo: room.roomNo,
+              floor: room.floor,
+              waterType: room.waterType,
+
+              waterPrev: baseWater,
+              waterCurr: isFlat ? baseWater : (baseWater + waterUsed),
+              occupants: occupants,
+              waterUnits: isFlat ? 0 : waterUsed,
+              waterCost: wCost,
+
+              elecPrev: baseElec,
+              elecCurr: baseElec + elecUsed,
+              elecUnits: elecUsed,
+              elecCost: eCost,
+
+              remark: remark,
+              totalAmount: wCost + eCost,
+              recordedAt: new Date().toISOString()
+            };
+          });
+
+          this.saveDatabase();
+          this.showToast('สร้างข้อมูลตัวอย่างสุ่มหอพักเรียบร้อยแล้ว!');
+        },
+
+        exportBackupJSON() {
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.records, null, 2));
+          const dlAnchorElem = document.createElement('a');
+          dlAnchorElem.setAttribute("href", dataStr);
+          dlAnchorElem.setAttribute("download", `meter_db_backup_${new Date().toISOString().slice(0,10)}.json`);
+          dlAnchorElem.click();
+          this.showToast('สำรองข้อมูล JSON เรียบร้อย');
+        },
+
+        confirmClearMonth() {
+          if (this.records[this.selectedMonth]) {
+            delete this.records[this.selectedMonth];
+            this.saveDatabase();
+            this.showToast(`ล้างข้อมูลเดือน ${this.selectedMonth} เรียบร้อยแล้ว`);
+          }
+        },
+
+        // Short Thai Month Code (e.g., "ก.ย. 69", "ส.ค. 69")
+        getShortMonthYear(yearMonthStr) {
+          if (!yearMonthStr) return '';
+          const [y, m] = yearMonthStr.split('-');
+          const thaiShortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+          const mIdx = parseInt(m, 10) - 1;
+          const yearShort = (parseInt(y, 10) + 543).toString().slice(-2);
+          return `${thaiShortMonths[mIdx]} ${yearShort}`;
+        },
+
+        getPrevShortMonthYear(yearMonthStr) {
+          if (!yearMonthStr) return '';
+          const [y, m] = yearMonthStr.split('-').map(Number);
+          let prevY = y;
+          let prevM = m - 1;
+          if (prevM < 1) {
+            prevM = 12;
+            prevY--;
+          }
+          const thaiShortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+          const yearShort = (prevY + 543).toString().slice(-2);
+          return `${thaiShortMonths[prevM - 1]} ${yearShort}`;
+        },
+
+        formatNumber(num) {
+          return (num || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        },
+
+        formatMonthThai(yearMonthStr) {
+          if (!yearMonthStr) return '';
+          const [y, m] = yearMonthStr.split('-');
+          const thaiMonths = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+          ];
+          const mIdx = parseInt(m, 10) - 1;
+          const thaiYear = parseInt(y, 10) + 543;
+          return `${thaiMonths[mIdx]} ${thaiYear}`;
+        },
+
+        showToast(msg, type = 'success') {
+          this.toast.message = msg;
+          this.toast.type = type;
+          this.toast.show = true;
+          setTimeout(() => {
+            this.toast.show = false;
+          }, 3000);
+        }
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+</html>

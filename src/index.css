@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Prompt', 'Sarabun', 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background-color: white !important;
+    font-family: 'Sarabun', sans-serif !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 0.8cm;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+.print-break-inside-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.print-table, .print-table th, .print-table td {
+  border: 1px solid #1e293b !important;
+  border-collapse: collapse !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
